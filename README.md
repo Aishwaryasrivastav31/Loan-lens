@@ -106,7 +106,6 @@ The app opens at http://localhost:8501.
 
 ## Limitations
 
-- **Small dataset.** Results may not generalise to other lenders or countries.
 - **Counterfactuals are not causal.** They show what would change the model's decision, not what would change a real lender's decision.
 - **Explanations, not advice.** The policy assistant answers only from the documents it has indexed and is not financial advice.
 
