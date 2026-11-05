@@ -62,9 +62,6 @@ The first version took too long to answer on a CPU server. Retrieval was fast; g
 5. **Streaming.** Answers are streamed with `st.write_stream`, so the first words appear immediately.
 
 ## Dataset
-
-[Loan Prediction dataset](https://www.kaggle.com/) (Kaggle).
-
 Features:
 
 - gender, marital status, dependants, education, self-employment;
