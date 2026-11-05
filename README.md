@@ -1,111 +1,86 @@
-# LoanLens: Explainable Loan Approval with Counterfactuals and Policy-Grounded Answers
+# LoanLens
 
-LoanLens predicts whether a loan application is likely to be approved and explains every decision. It answers three questions an applicant or loan officer actually asks:
+Explainable loan approval with counterfactual guidance and policy-grounded answers.
 
-1. **Will this loan be approved?** A gradient-boosted classifier (LightGBM, compared with CatBoost) predicts the outcome with a probability.
-2. **Why?** SHAP shows which factors pushed the decision up or down for this specific applicant.
-3. **What would change it?** DiCE generates counterfactuals: the smallest realistic changes (for example, a lower loan amount or a co-applicant income) that would flip a rejection into an approval.
+**Live application:** [http://13.127.240.138:8501](http://13.127.240.138:8501/)
 
-A retrieval-augmented assistant then answers questions about lending rules, grounded in policy documents and citing the passages it used.
+## Overview
 
-Live demo: http://13.127.240.138:8501/
+Most credit models return a single outcome, approved or rejected, with no reason and no way forward. That serves neither side of the decision. An applicant needs to know why they were declined and what they could change. A lender needs to justify every decision it makes.
 
-## Features
+LoanLens is built around that gap. For each application it answers four questions:
 
-- **Prediction.** Approval probability from LightGBM and CatBoost, compared on the same validation split.
-- **Local explanations.** SHAP values for each prediction, plus global feature importance.
-- **Counterfactuals.** DiCE suggestions limited to features an applicant can realistically change.
-- **Policy assistant.** A RAG pipeline (LangChain, Chroma, nomic-embed-text embeddings, a local LLM through Ollama) that answers with sources and streams its answer.
-- **Evaluation of the assistant.** RAGAS metrics (faithfulness, answer relevance, context precision) on a fixed question set.
-- **Synthetic-data experiment.** Models trained on real data, synthetic data and a mix, compared on the same real test set.
-- **Deployment.** A Streamlit app hosted on AWS EC2.
-
-## Results
-
-| Model | Training data | Accuracy | F1 | ROC-AUC |
-|---|---|---|---|---|
-| LightGBM | Real | <value> | <value> | <value> |
-| CatBoost | Real | <value> | <value> | <value> |
-| LightGBM | Real + synthetic | <value> | <value> | <value> |
-
-| RAG metric (RAGAS) | Score |
+| Question | Method |
 |---|---|
-| Faithfulness | <value> |
-| Answer relevance | <value> |
-| Context precision | <value> |
+| Will this loan be approved? | Gradient-boosted classifiers (LightGBM, benchmarked against CatBoost) return an approval probability. |
+| Why was this decision made? | SHAP attributes the decision to individual factors such as income, credit history, loan amount and term, for that specific applicant. |
+| What would change the outcome? | DiCE generates counterfactual explanations: the smallest realistic changes that would turn a rejection into an approval. |
+| What do the lending rules say? | A retrieval-augmented assistant answers policy questions from indexed documents and cites the passages it used. |
 
-All scores are on a held-out test set of real applications that no model saw during training.
+## Key capabilities
 
-## How it works
+**Applicant-level explanations.** SHAP explains each individual decision, not only overall feature importance. A loan officer can see exactly which factors raised or lowered this applicant's probability, and by how much.
 
-```
-Applicant form (Streamlit)
-        |
-        v
-Preprocessing -> LightGBM / CatBoost -> approval probability
-        |                 |
-        |                 +--> SHAP: why this decision
-        |                 +--> DiCE: what would change it
-        v
-Policy question -> retriever (Chroma, nomic-embed-text, top 3 chunks)
-                -> LLM (Ollama) -> answer with cited sources, streamed
-```
+**Actionable counterfactuals.** DiCE searches only over features an applicant can realistically change, such as the loan amount, the loan term or a co-applicant's income. Fixed attributes are never suggested as changes, so every recommendation is one the applicant could act on.
 
-### Making the assistant fast
+**Policy assistant with sources.** Policy documents are split into chunks, embedded with nomic-embed-text and stored in Chroma. For each question, the most relevant passages are retrieved through LangChain and passed to a local language model served by Ollama. The answer is grounded in those passages and shows its sources.
 
-The first version took too long to answer on a CPU server. Retrieval was fast; generation was the bottleneck. Five changes brought the first words on screen down to 1-2 seconds:
+**Measured answer quality.** The assistant is evaluated with RAGAS on faithfulness, answer relevance and context precision, so its quality is measured rather than assumed.
 
-1. **Shorter context.** 3 retrieved chunks of 600 characters instead of 5 of 1,000.
-2. **Bounded answers.** A cap of 150 answer tokens.
-3. **Model kept loaded.** `keep_alive` set to 30 minutes, with a warm-up call when the app starts.
-4. **Caching.** Repeated questions are answered from a cache.
-5. **Streaming.** Answers are streamed with `st.write_stream`, so the first words appear immediately.
+**Synthetic-data study.** Models trained on real data, synthetic data and a mix of the two are compared on the same held-out set of real applications. This tests whether synthetic data improves a small credit dataset.
+
+**Deployed application.** The full system runs as a Streamlit application on AWS EC2.
+
+## Engineering: a fast assistant on a CPU server
+
+The first deployed version answered policy questions slowly. Profiling showed that retrieval took milliseconds and the delay came from text generation on CPU. Long prompts made it worse, and so did the model being unloaded after five idle minutes. Five targeted changes brought the time to the first visible words down to one to two seconds.
+
+| Change | Effect |
+|---|---|
+| Context reduced from five 1,000-character chunks to three 600-character chunks | Shorter prompt, faster generation |
+| Answer length capped at 150 tokens | Predictable response time |
+| Model kept in memory for 30 minutes, with a warm-up call at start-up | No cold-start delay |
+| Cache for repeated questions | Instant answers to common queries |
+| Streamed output | Text appears as it is generated |
 
 ## Dataset
-Features:
 
-- gender, marital status, dependants, education, self-employment;
-- applicant and co-applicant income;
-- loan amount and term;
-- credit history;
-- property area.
+Loan Prediction dataset (Kaggle).
 
-Target: loan status (approved or not).
+| Item | Detail |
+|---|---|
+| Applicant profile | Gender, marital status, dependants, education, self-employment |
+| Financial features | Applicant income, co-applicant income |
+| Loan details | Loan amount, loan term, property area |
+| Credit history | Whether the applicant has a credit history |
+| Target | Loan status (approved or not) |
 
-## Tech stack
+## Technology
 
 | Area | Tools |
 |---|---|
-| Modelling | Python, pandas, scikit-learn, LightGBM, CatBoost |
+| Data and modelling | Python, pandas, NumPy, scikit-learn, LightGBM, CatBoost |
 | Explainability | SHAP, DiCE |
-| Retrieval and generation | LangChain, Chroma, nomic-embed-text, Ollama |
+| Retrieval-augmented generation | LangChain, Chroma, nomic-embed-text, Ollama |
 | Evaluation | scikit-learn metrics, RAGAS |
-| App and deployment | Streamlit, AWS EC2 (Amazon Linux) |
+| Application and deployment | Streamlit, AWS EC2 |
 
-## Project structure
-
-```
-<folder tree from the repository>
-```
-
-## Run locally
+## Running locally
 
 ```bash
 git clone https://github.com/Aishwaryasrivastav31/Loan-lens.git
 cd Loan-lens
 pip install -r requirements.txt
+
 ollama pull nomic-embed-text
-ollama pull <llm model>
-streamlit run <app file>.py
+ollama pull phi3
+
+streamlit run app.py
 ```
 
-The app opens at http://localhost:8501.
-
-## Limitations
-
-- **Counterfactuals are not causal.** They show what would change the model's decision, not what would change a real lender's decision.
-- **Explanations, not advice.** The policy assistant answers only from the documents it has indexed and is not financial advice.
+The application opens at http://localhost:8501.
 
 ## Author
 
-Aishwarya Srivastava · [LinkedIn](https://www.linkedin.com/in/aishwarya-srivastav-5a63222b1/) · [GitHub](https://github.com/Aishwaryasrivastav31)
+Aishwarya Srivastava
+[LinkedIn](https://www.linkedin.com/in/aishwarya-srivastav-5a63222b1/) | [GitHub](https://github.com/Aishwaryasrivastav31)
