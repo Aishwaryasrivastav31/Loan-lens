@@ -82,5 +82,4 @@ The application opens at http://localhost:8501.
 
 ## Author
 
-Aishwarya Srivastava
-[LinkedIn](https://www.linkedin.com/in/aishwarya-srivastav-5a63222b1/) | [GitHub](https://github.com/Aishwaryasrivastav31)
+Aishwarya Srivastava  [GitHub](https://github.com/Aishwaryasrivastav31)
